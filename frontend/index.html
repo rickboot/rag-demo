@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RAG Demo — Phison aiDAPTIV</title>
+  <style>
+    :root {
+      --pascari-yellow: #FFDD00;
+      --pascari-blue: #1C3051;
+      --pascari-white: #FFFFFF;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--pascari-yellow);
+      color: var(--pascari-blue);
+    }
+    .container {
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+    h1 {
+      color: var(--pascari-blue);
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+    .subtitle {
+      color: var(--pascari-blue);
+      opacity: 0.85;
+      font-size: 0.95rem;
+      margin-bottom: 2rem;
+    }
+    .card {
+      background: var(--pascari-white);
+      color: var(--pascari-blue);
+      border: 2px solid var(--pascari-blue);
+      border-radius: 8px;
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 1rem;
+    }
+    .card h2 {
+      font-size: 0.9rem;
+      font-weight: 600;
+      margin: 0 0 0.5rem 0;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .card pre {
+      margin: 0;
+      font-size: 0.85rem;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .status {
+      display: inline-block;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+    .status.ok { background: var(--pascari-blue); color: var(--pascari-white); }
+    .status.loading { background: var(--pascari-white); color: var(--pascari-blue); border: 1px solid var(--pascari-blue); }
+    .status.error { background: #c00; color: var(--pascari-white); }
+    /* Chat */
+    .chat-row {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+    .chat-row input {
+      flex: 1;
+      padding: 0.6rem 0.75rem;
+      font-size: 1rem;
+      border: 2px solid var(--pascari-blue);
+      border-radius: 6px;
+      background: var(--pascari-white);
+      color: var(--pascari-blue);
+    }
+    .chat-row input::placeholder { color: var(--pascari-blue); opacity: 0.6; }
+    .btn {
+      padding: 0.6rem 1rem;
+      font-size: 1rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .btn-primary {
+      background: var(--pascari-blue);
+      color: var(--pascari-white);
+    }
+    .btn-primary:hover { opacity: 0.9; }
+    .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+    .reply-box {
+      min-height: 4rem;
+      padding: 1rem;
+      background: var(--pascari-white);
+      border: 2px solid var(--pascari-blue);
+      border-radius: 8px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .reply-box.empty { color: #999; }
+    .reply-box.error { background: #ffe0e0; border-color: #c00; }
+    /* Conversation */
+    .conversation { max-height: 20rem; overflow-y: auto; margin-top: 0.5rem; }
+    .msg { margin-bottom: 0.75rem; padding: 0.6rem 0.75rem; border-radius: 6px; font-size: 0.9rem; white-space: pre-wrap; word-break: break-word; }
+    .msg.user { background: rgba(28, 48, 81, 0.08); border-left: 3px solid var(--pascari-blue); }
+    .msg.assistant { background: var(--pascari-white); border: 1px solid var(--pascari-blue); }
+    .msg.thinking { background: var(--pascari-white); border: 1px solid var(--pascari-blue); color: var(--pascari-blue); opacity: 0.9; }
+    .msg .role { font-size: 0.75rem; font-weight: 600; margin-bottom: 0.25rem; opacity: 0.9; }
+    .thinking-dots { display: inline-flex; gap: 0.25rem; align-items: center; }
+    .thinking-dots span { width: 6px; height: 6px; border-radius: 50%; background: var(--pascari-blue); animation: thinking-bounce 0.6s ease-in-out infinite; }
+    .thinking-dots span:nth-child(2) { animation-delay: 0.1s; }
+    .thinking-dots span:nth-child(3) { animation-delay: 0.2s; }
+    @keyframes thinking-bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+    /* Search results */
+    .search-status { font-size: 0.9rem; margin-bottom: 0.5rem; min-height: 1.25rem; }
+    .search-results { margin-top: 0.5rem; }
+    .chunk-item {
+      background: var(--pascari-white);
+      border: 1px solid var(--pascari-blue);
+      border-radius: 6px;
+      padding: 0.75rem 1rem;
+      margin-bottom: 0.5rem;
+      font-size: 0.85rem;
+    }
+    .chunk-item .path { font-weight: 600; color: var(--pascari-blue); margin-bottom: 0.25rem; }
+    .chunk-item .text { white-space: pre-wrap; word-break: break-word; max-height: 8em; overflow-y: auto; }
+    .chunk-item .score { font-size: 0.75rem; opacity: 0.8; margin-top: 0.25rem; }
+    /* Collapsible section */
+    .collapsible-card .collapsible-header {
+      cursor: pointer;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      margin: 0 0 0.5rem 0;
+      padding: 0;
+      border: none;
+      background: none;
+      font: inherit;
+      color: inherit;
+      text-align: left;
+      width: 100%;
+    }
+    .collapsible-card .collapsible-header:hover { opacity: 0.9; }
+    .collapsible-card .collapsible-header .chevron {
+      display: inline-block;
+      transition: transform 0.2s ease;
+      font-size: 0.75rem;
+    }
+    .collapsible-card.collapsed .collapsible-header .chevron { transform: rotate(-90deg); }
+    .collapsible-card .collapsible-body { margin-top: 0.25rem; }
+    .collapsible-card.collapsed .collapsible-body { display: none; }
+    /* Session metrics (Phase 6) */
+    .session-metrics {
+      font-size: 0.85rem;
+      margin-bottom: 0.75rem;
+      padding: 0.5rem 0.75rem;
+      background: rgba(28, 48, 81, 0.06);
+      border-radius: 6px;
+      color: var(--pascari-blue);
+      border-left: 3px solid var(--pascari-blue);
+    }
+    .session-metrics.empty { display: none; }
+    .session-metrics .label { font-weight: 600; margin-right: 0.5rem; }
+    .session-metrics .value { opacity: 0.9; }
+    /* Per-turn metrics under each assistant reply */
+    .msg-turn-metrics {
+      font-size: 0.7rem;
+      color: var(--pascari-blue);
+      opacity: 0.8;
+      margin-top: 0.5rem;
+      padding-top: 0.35rem;
+      border-top: 1px solid rgba(28, 48, 81, 0.15);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>RAG Demo</h1>
+    <p class="subtitle">Phison aiDAPTIV — Phase 6: Session metrics</p>
+
+    <div class="card">
+      <h2>Backend</h2>
+      <p><span id="status" class="status loading">Checking…</span></p>
+      <pre id="payload">—</pre>
+    </div>
+
+    <div class="card collapsible-card collapsed" id="searchCard">
+      <button type="button" class="collapsible-header" id="searchToggle" aria-expanded="false">
+        <span class="chevron" aria-hidden="true">▼</span>
+        <h2 style="margin:0">Search Transformers corpus</h2>
+      </button>
+      <div class="collapsible-body" id="searchBody">
+        <p class="chat-row">
+          <input type="text" id="searchQuery" placeholder="e.g. generation_config, attention mask…" />
+          <button type="button" id="searchBtn" class="btn btn-primary">Search</button>
+        </p>
+        <div id="searchStatus" class="search-status"></div>
+        <div id="searchResults" class="search-results"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Coding assistant (RAG)</h2>
+      <div id="sessionMetrics" class="session-metrics"></div>
+      <p class="chat-row">
+        <input type="text" id="prompt" placeholder="Ask about the Transformers codebase…" />
+        <button type="button" id="send" class="btn btn-primary">Send</button>
+      </p>
+      <div id="conversation" class="conversation"></div>
+    </div>
+  </div>
+
+  <script>
+    const statusEl = document.getElementById('status');
+    const payloadEl = document.getElementById('payload');
+    const searchQueryEl = document.getElementById('searchQuery');
+    const searchBtnEl = document.getElementById('searchBtn');
+    const searchStatusEl = document.getElementById('searchStatus');
+    const searchResultsEl = document.getElementById('searchResults');
+    const promptEl = document.getElementById('prompt');
+    const sendEl = document.getElementById('send');
+    const conversationEl = document.getElementById('conversation');
+    const sessionMetricsEl = document.getElementById('sessionMetrics');
+
+    let sessionId = null;
+    const messages = [];
+    let lastMetrics = null;
+
+    function renderSessionMetrics() {
+      if (!lastMetrics) {
+        sessionMetricsEl.innerHTML = '';
+        sessionMetricsEl.classList.add('empty');
+        return;
+      }
+      sessionMetricsEl.classList.remove('empty');
+      const n = lastMetrics.message_count ?? 0;
+      const ctx = lastMetrics.context_chars ?? 0;
+      const rss = lastMetrics.process_rss_mb;
+      let html = '<span class="label">Session:</span> <span class="value">' + n + ' message' + (n !== 1 ? 's' : '') + '</span>';
+      html += ' &middot; <span class="label">Context:</span> <span class="value">' + ctx.toLocaleString() + ' chars</span>';
+      if (rss != null) html += ' &middot; <span class="label">Memory:</span> <span class="value">' + rss + ' MB</span>';
+      const lt = lastMetrics.last_turn;
+      if (lt && lt.timing_ms) {
+        const rm = lt.timing_ms.retrieve_ms;
+        const im = lt.timing_ms.inference_ms;
+        const ret = lt.rag && lt.rag.returned;
+        const model = (lt.inference && lt.inference.model) || lt.model;
+        html += '<br/><span class="label">Last turn:</span> <span class="value">retrieve ' + rm + 'ms, infer ' + im + 'ms, chunks ' + ret + (model ? (', model ' + escapeHtml(String(model))) : '') + '</span>';
+      }
+      sessionMetricsEl.innerHTML = html;
+    }
+
+    function formatTurnMetrics(t) {
+      if (!t || !t.timing_ms) return '';
+      const r = t.timing_ms.retrieve_ms;
+      const i = t.timing_ms.inference_ms;
+      const chunks = (t.rag && t.rag.returned != null) ? t.rag.returned : '';
+      const chars = (t.sizes && t.sizes.prompt_chars != null) ? (t.sizes.prompt_chars >= 1000 ? (t.sizes.prompt_chars / 1000).toFixed(1) + 'k' : t.sizes.prompt_chars) : '';
+      const parts = ['Retrieve ' + r + 'ms', 'Infer ' + i + 'ms'];
+      if (chunks !== '') parts.push(chunks + ' chunks');
+      if (chars) parts.push(chars + ' chars');
+      return parts.join(' · ');
+    }
+
+    function renderConversation() {
+      conversationEl.innerHTML = '';
+      messages.forEach((m) => {
+        const div = document.createElement('div');
+        div.className = 'msg ' + m.role + (m.thinking ? ' thinking' : '');
+        if (m.thinking) {
+          div.innerHTML = '<div class="role">assistant</div><div class="thinking-dots"><span></span><span></span><span></span></div> <span style="margin-left:0.35rem">Thinking…</span>';
+        } else {
+          let body = '<div class="role">' + escapeHtml(m.role) + '</div><div>' + escapeHtml(m.content) + '</div>';
+          if (m.role === 'assistant' && m.turnMetrics) {
+            const line = formatTurnMetrics(m.turnMetrics);
+            if (line) body += '<div class="msg-turn-metrics">' + escapeHtml(line) + '</div>';
+          }
+          div.innerHTML = body;
+        }
+        conversationEl.appendChild(div);
+      });
+      conversationEl.scrollTop = conversationEl.scrollHeight;
+    }
+
+    async function check() {
+      try {
+        const res = await fetch(window.location.origin + '/api/hello');
+        const data = await res.json();
+        statusEl.textContent = 'OK';
+        statusEl.className = 'status ok';
+        payloadEl.textContent = JSON.stringify(data, null, 2);
+      } catch (e) {
+        statusEl.textContent = 'Error';
+        statusEl.className = 'status error';
+        payloadEl.textContent = e.message || String(e);
+      }
+    }
+
+    async function sendChat() {
+      const prompt = promptEl.value.trim();
+      if (!prompt) return;
+      sendEl.disabled = true;
+      messages.push({ role: 'user', content: prompt });
+      messages.push({ role: 'assistant', content: '', thinking: true });
+      promptEl.value = '';
+      renderConversation();
+      try {
+        const res = await fetch(window.location.origin + '/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt, session_id: sessionId }),
+        });
+        let data = {};
+        try { data = await res.json(); } catch (_) {}
+        messages.pop(); // remove thinking placeholder
+        if (!res.ok) {
+          messages.pop(); // remove user message so we can show error as assistant reply
+          messages.push({ role: 'assistant', content: data.detail || res.statusText || 'Request failed' });
+          renderConversation();
+          return;
+        }
+        if (data.session_id) sessionId = data.session_id;
+        messages.push({
+          role: 'assistant',
+          content: data.reply || '(no reply)',
+          turnMetrics: data.metrics && data.metrics.last_turn ? data.metrics.last_turn : null,
+        });
+        lastMetrics = data.metrics || { message_count: data.message_count ?? messages.length };
+        if (lastMetrics.message_count == null) lastMetrics.message_count = messages.length;
+        renderSessionMetrics();
+        renderConversation();
+      } catch (e) {
+        messages.pop(); // remove thinking placeholder
+        messages.pop(); // remove user message
+        renderConversation();
+        messages.push({ role: 'assistant', content: e.message || 'Request failed' });
+        renderConversation();
+      } finally {
+        sendEl.disabled = false;
+      }
+    }
+
+    async function searchCorpus() {
+      const q = searchQueryEl.value.trim();
+      if (!q) return;
+      searchBtnEl.disabled = true;
+      searchStatusEl.textContent = 'Searching…';
+      searchResultsEl.innerHTML = '';
+      try {
+        const res = await fetch(window.location.origin + '/api/retrieve', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: q, top_k: 10 }),
+        });
+        let data = {};
+        try { data = await res.json(); } catch (_) {}
+        if (!res.ok) {
+          searchStatusEl.textContent = data.detail || res.statusText || 'Search failed';
+          return;
+        }
+        const chunks = data.chunks || [];
+        searchStatusEl.textContent = chunks.length ? `${chunks.length} chunk(s)` : 'No chunks found.';
+        chunks.forEach((c) => {
+          const div = document.createElement('div');
+          div.className = 'chunk-item';
+          const snippet = (c.text || '').slice(0, 500) + ((c.text || '').length > 500 ? '…' : '');
+          div.innerHTML = `<div class="path">${escapeHtml(c.path)}</div><div class="text">${escapeHtml(snippet)}</div><div class="score">score: ${Number(c.score).toFixed(4)}</div>`;
+          searchResultsEl.appendChild(div);
+        });
+      } catch (e) {
+        searchStatusEl.textContent = e.message || 'Search failed';
+      } finally {
+        searchBtnEl.disabled = false;
+      }
+    }
+    function escapeHtml(s) {
+      const d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    const searchCardEl = document.getElementById('searchCard');
+    const searchToggleEl = document.getElementById('searchToggle');
+    searchToggleEl.addEventListener('click', () => {
+      const collapsed = searchCardEl.classList.toggle('collapsed');
+      searchToggleEl.setAttribute('aria-expanded', !collapsed);
+    });
+
+    check();
+    searchBtnEl.addEventListener('click', searchCorpus);
+    searchQueryEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') searchCorpus(); });
+    sendEl.addEventListener('click', sendChat);
+    promptEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChat(); });
+  </script>
+</body>
+</html>
