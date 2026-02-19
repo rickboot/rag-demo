@@ -52,4 +52,4 @@ Then open **http://localhost:8000** in your browser. You should see the Pascari-
 - **[DEMO_PLAN.md](DEMO_PLAN.md)** — Full plan: architecture, stack, demo flow, build phases, metrics, credibility checklist.
 - **[docs/ai_daptiv_canonical_overview.md](docs/ai_daptiv_canonical_overview.md)** — Canonical aiDAPTIV background, value props, and messaging guardrails.
 - **[docs/UI_COLOR_SCHEME.md](docs/UI_COLOR_SCHEME.md)** — Phison Pascari UI palette (yellow `#FFDD00`, blue `#1C3051`, white) and usage for the demo UI.
-# rag-demo
+- **[docs/M4_16GB_DEGRADATION.md](docs/M4_16GB_DEGRADATION.md)** — Model/quant and prompts to get “perform well, then degrade” on MacBook Air M4 16GB.

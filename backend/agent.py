@@ -7,20 +7,13 @@ from backend.inference import generate
 from backend.retrieval import retrieve
 from config import settings
 
-# How many chunks to inject into the prompt
-RAG_TOP_K = 6
-
-# Max chars of context to avoid blowing context window (rough)
-MAX_CONTEXT_CHARS = 12_000
-
-
 def _format_context(chunks: list[dict]) -> str:
     parts = []
     for i, c in enumerate(chunks, 1):
         path = c.get("path", "?")
         text = (c.get("text") or "")[:2000].strip()
         parts.append(f"[{i}] {path}\n{text}")
-    return "\n\n".join(parts)[:MAX_CONTEXT_CHARS]
+    return "\n\n".join(parts)[: settings.max_context_chars]
 
 
 def _format_messages(history: list[dict]) -> str:
@@ -47,7 +40,7 @@ async def run_rag_chat(message: str, history: list[dict]) -> tuple[str, dict]:
 
     try:
         t_retrieve0 = time.perf_counter()
-        chunks = retrieve(message, top_k=RAG_TOP_K)
+        chunks = retrieve(message, top_k=settings.rag_top_k)
         t_retrieve1 = time.perf_counter()
     except FileNotFoundError:
         return (
@@ -82,16 +75,19 @@ Assistant:"""
     t_infer1 = time.perf_counter()
 
     # Compact per-turn telemetry for demo/operator visibility.
+    chunk_list = chunks or []
+    paths = [c.get("path") for c in chunk_list if c.get("path")]
     top = [
         {"path": c.get("path"), "score": c.get("score")}
-        for c in (chunks or [])[: min(3, len(chunks or []))]
+        for c in chunk_list[: min(3, len(chunk_list))]
     ]
     turn_metrics = {
         "tier": settings.tier,
         "model": settings.model_name,
         "rag": {
-            "top_k": RAG_TOP_K,
-            "returned": len(chunks or []),
+            "top_k": settings.rag_top_k,
+            "returned": len(chunk_list),
+            "paths": paths,
             "top": top,
         },
         "sizes": {

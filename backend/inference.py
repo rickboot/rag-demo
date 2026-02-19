@@ -21,6 +21,13 @@ async def generate(prompt: str) -> tuple[str, dict]:
         "prompt": prompt,
         "stream": False,
     }
+    options = {}
+    if settings.num_ctx is not None:
+        options["num_ctx"] = settings.num_ctx
+    if settings.num_predict is not None:
+        options["num_predict"] = settings.num_predict
+    if options:
+        payload["options"] = options
     t0 = time.perf_counter()
     async with httpx.AsyncClient(timeout=120.0) as client:
         resp = await client.post(url, json=payload)

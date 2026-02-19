@@ -39,9 +39,13 @@ class Settings:
     inference_url: str
     model_name: str
     context_length: int
+    num_ctx: int | None  # Ollama context window; None = use model default (faster with smaller value)
+    num_predict: int | None  # Ollama max new tokens; None = use model default
     index_path: Path
     repo_path: Path
     ingest_max_files: int  # 0 = no limit (full repo); default 500 for faster dev runs
+    rag_top_k: int
+    max_context_chars: int  # max RAG context chars in prompt (smaller = faster)
 
     def __init__(self) -> None:
         self.tier = _str("TIER", "dev").lower()
@@ -50,9 +54,15 @@ class Settings:
         self.inference_url = _str("INFERENCE_URL", "http://localhost:11434").rstrip("/")
         self.model_name = _str("MODEL_NAME", "llama3.1:8b")
         self.context_length = _int("CONTEXT_LENGTH", 8192)
+        _num_ctx = _int("NUM_CTX", 0)
+        self.num_ctx = _num_ctx if _num_ctx > 0 else None
+        _num_predict = _int("NUM_PREDICT", 0)
+        self.num_predict = _num_predict if _num_predict > 0 else None
         self.index_path = _path("INDEX_PATH", "./data/faiss_index")
         self.repo_path = _path("REPO_PATH", "./data/transformers")
         self.ingest_max_files = _int("INGEST_MAX_FILES", 500)
+        self.rag_top_k = max(1, min(_int("RAG_TOP_K", 4), 20))
+        self.max_context_chars = max(1000, _int("MAX_CONTEXT_CHARS", 8000))
 
     def __repr__(self) -> str:
         return f"Settings(tier={self.tier!r}, inference_url={self.inference_url!r}, model_name={self.model_name!r})"

@@ -18,6 +18,37 @@
       background: var(--pascari-yellow);
       color: var(--pascari-blue);
     }
+    .app-layout {
+      display: flex;
+      min-height: 100vh;
+      flex-wrap: wrap;
+    }
+    .app-main {
+      flex: 1;
+      min-width: 280px;
+      padding: 1.5rem;
+      max-width: 560px;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+    .app-sidebar {
+      width: 480px;
+      min-width: 400px;
+      max-width: 100%;
+      padding: 1.5rem;
+      background: rgba(28, 48, 81, 0.06);
+      border-left: 2px solid var(--pascari-blue);
+      overflow-y: auto;
+      max-height: 100vh;
+    }
+    .app-sidebar h2.sidebar-title {
+      font-size: 0.85rem;
+      margin: 0 0 1rem 0;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      opacity: 0.9;
+    }
     .container {
       max-width: 640px;
       margin: 0 auto;
@@ -108,8 +139,26 @@
     }
     .reply-box.empty { color: #999; }
     .reply-box.error { background: #ffe0e0; border-color: #c00; }
-    /* Conversation */
-    .conversation { max-height: 20rem; overflow-y: auto; margin-top: 0.5rem; }
+    /* Conversation — main userland chat */
+    .chat-card { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+    .conversation {
+      flex: 1;
+      min-height: 16rem;
+      max-height: 50vh;
+      overflow-y: auto;
+      margin-top: 0.5rem;
+      padding: 0.5rem 0;
+      border-radius: 6px;
+      background: rgba(28, 48, 81, 0.03);
+    }
+    .conversation:empty::before {
+      content: 'Your prompts and replies will appear here.';
+      display: block;
+      color: var(--pascari-blue);
+      opacity: 0.5;
+      font-size: 0.9rem;
+      padding: 1rem 0.75rem;
+    }
     .msg { margin-bottom: 0.75rem; padding: 0.6rem 0.75rem; border-radius: 6px; font-size: 0.9rem; white-space: pre-wrap; word-break: break-word; }
     .msg.user { background: rgba(28, 48, 81, 0.08); border-left: 3px solid var(--pascari-blue); }
     .msg.assistant { background: var(--pascari-white); border: 1px solid var(--pascari-blue); }
@@ -172,6 +221,19 @@
     .session-metrics.empty { display: none; }
     .session-metrics .label { font-weight: 600; margin-right: 0.5rem; }
     .session-metrics .value { opacity: 0.9; }
+    /* Workload / corpus info in main UI */
+    .workload-info {
+      font-size: 0.85rem;
+      padding: 0.5rem 0.75rem;
+      margin-bottom: 1rem;
+      background: rgba(28, 48, 81, 0.06);
+      border-radius: 6px;
+      color: var(--pascari-blue);
+      border-left: 3px solid var(--pascari-blue);
+    }
+    .workload-info.empty { display: none; }
+    .workload-info .wlabel { font-weight: 600; margin-right: 0.35rem; }
+    .workload-info .wvalue { opacity: 0.95; }
     /* Per-turn metrics under each assistant reply */
     .msg-turn-metrics {
       font-size: 0.7rem;
@@ -181,18 +243,30 @@
       padding-top: 0.35rem;
       border-top: 1px solid rgba(28, 48, 81, 0.15);
     }
+    /* Degradation test */
+    .degradation-results { display: none; margin-top: 1rem; }
+    .degradation-results.visible { display: block; }
+    .degradation-turn { margin-bottom: 0.75rem; border: 1px solid var(--pascari-blue); border-radius: 6px; overflow: hidden; }
+    .degradation-turn-header { padding: 0.5rem 0.75rem; background: rgba(28, 48, 81, 0.08); cursor: pointer; font-weight: 600; font-size: 0.85rem; }
+    .degradation-turn-body { padding: 0.75rem 1rem; font-size: 0.85rem; white-space: pre-wrap; word-break: break-word; max-height: 12rem; overflow-y: auto; }
+    .degradation-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; margin-top: 0.5rem; }
+    .degradation-table th, .degradation-table td { border: 1px solid var(--pascari-blue); padding: 0.35rem 0.5rem; text-align: left; }
+    .degradation-table th { background: rgba(28, 48, 81, 0.1); }
+    .degradation-charts { display: grid; gap: 1rem; margin-top: 1rem; }
+    .degradation-chart { background: rgba(28, 48, 81, 0.04); border: 1px solid var(--pascari-blue); border-radius: 6px; padding: 0.75rem; }
+    .degradation-chart h4 { margin: 0 0 0.5rem 0; font-size: 0.85rem; }
+    .degradation-chart svg { width: 100%; height: 140px; display: block; }
+    .degradation-chart .axis { stroke: var(--pascari-blue); stroke-width: 1; }
+    .degradation-chart .tick { font-size: 10px; fill: var(--pascari-blue); }
+    .degradation-chart .axis-label { font-size: 11px; font-weight: 600; fill: var(--pascari-blue); }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>RAG Demo</h1>
-    <p class="subtitle">Phison aiDAPTIV — Phase 6: Session metrics</p>
-
-    <div class="card">
-      <h2>Backend</h2>
-      <p><span id="status" class="status loading">Checking…</span></p>
-      <pre id="payload">—</pre>
-    </div>
+  <div class="app-layout">
+    <main class="app-main">
+      <h1>RAG Demo</h1>
+      <p class="subtitle">Phison aiDAPTIV — Coding assistant</p>
+      <div id="workloadInfo" class="workload-info empty">Loading workload…</div>
 
     <div class="card collapsible-card collapsed" id="searchCard">
       <button type="button" class="collapsible-header" id="searchToggle" aria-expanded="false">
@@ -209,15 +283,47 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card chat-card">
       <h2>Coding assistant (RAG)</h2>
-      <div id="sessionMetrics" class="session-metrics"></div>
       <p class="chat-row">
         <input type="text" id="prompt" placeholder="Ask about the Transformers codebase…" />
         <button type="button" id="send" class="btn btn-primary">Send</button>
       </p>
-      <div id="conversation" class="conversation"></div>
+      <div id="conversation" class="conversation" aria-label="Chat: your prompts and assistant replies"></div>
+      <div id="sessionMetrics" class="session-metrics"></div>
     </div>
+    </main>
+
+    <aside class="app-sidebar" aria-label="Metrics and telemetry">
+      <h2 class="sidebar-title">Metrics &amp; telemetry</h2>
+
+      <div class="card">
+        <h2>Backend</h2>
+        <p><span id="status" class="status loading">Checking…</span></p>
+        <pre id="payload">—</pre>
+      </div>
+
+      <div class="card">
+        <h2>Model</h2>
+        <div id="modelInfo" class="session-metrics empty">Loading…</div>
+      </div>
+
+      <div class="card">
+        <h2>Run Degradation Test</h2>
+        <p>
+          <button type="button" id="runDegradationBtn" class="btn btn-primary">Run Degradation Test</button>
+        </p>
+        <p><span id="degradationStatus" style="font-size:0.9rem;"></span></p>
+        <p><button type="button" id="exportMetricsBtn" class="btn" style="font-size:0.85rem;padding:0.4rem 0.75rem;">Export metrics</button></p>
+        <div id="degradationResults" class="degradation-results">
+          <p id="degradationModelInfo" style="font-size:0.85rem;margin:0 0 0.5rem 0;color:var(--pascari-blue);"></p>
+          <h3 style="font-size:1rem;margin:0 0 0.5rem 0;">Metrics</h3>
+          <div id="degradationTableWrap" style="overflow-x:auto;"></div>
+          <h3 style="font-size:1rem;margin:1rem 0 0.5rem 0;">Charts</h3>
+          <div id="degradationCharts" class="degradation-charts"></div>
+        </div>
+      </div>
+    </aside>
   </div>
 
   <script>
@@ -231,18 +337,27 @@
     const sendEl = document.getElementById('send');
     const conversationEl = document.getElementById('conversation');
     const sessionMetricsEl = document.getElementById('sessionMetrics');
+    const sidebarSessionEl = document.getElementById('sidebarSessionMetrics');
+    const modelInfoEl = document.getElementById('modelInfo');
+    const workloadInfoEl = document.getElementById('workloadInfo');
 
     let sessionId = null;
     const messages = [];
     let lastMetrics = null;
+    let lastDegradationTurns = [];
 
     function renderSessionMetrics() {
       if (!lastMetrics) {
         sessionMetricsEl.innerHTML = '';
         sessionMetricsEl.classList.add('empty');
+        if (sidebarSessionEl) {
+          sidebarSessionEl.innerHTML = 'No active session. Use the chat to start.';
+          sidebarSessionEl.classList.add('empty');
+        }
         return;
       }
       sessionMetricsEl.classList.remove('empty');
+      if (sidebarSessionEl) sidebarSessionEl.classList.remove('empty');
       const n = lastMetrics.message_count ?? 0;
       const ctx = lastMetrics.context_chars ?? 0;
       const rss = lastMetrics.process_rss_mb;
@@ -258,18 +373,31 @@
         html += '<br/><span class="label">Last turn:</span> <span class="value">retrieve ' + rm + 'ms, infer ' + im + 'ms, chunks ' + ret + (model ? (', model ' + escapeHtml(String(model))) : '') + '</span>';
       }
       sessionMetricsEl.innerHTML = html;
+      if (sidebarSessionEl) sidebarSessionEl.innerHTML = html;
     }
 
     function formatTurnMetrics(t) {
-      if (!t || !t.timing_ms) return '';
-      const r = t.timing_ms.retrieve_ms;
-      const i = t.timing_ms.inference_ms;
-      const chunks = (t.rag && t.rag.returned != null) ? t.rag.returned : '';
-      const chars = (t.sizes && t.sizes.prompt_chars != null) ? (t.sizes.prompt_chars >= 1000 ? (t.sizes.prompt_chars / 1000).toFixed(1) + 'k' : t.sizes.prompt_chars) : '';
-      const parts = ['Retrieve ' + r + 'ms', 'Infer ' + i + 'ms'];
-      if (chunks !== '') parts.push(chunks + ' chunks');
-      if (chars) parts.push(chars + ' chars');
-      return parts.join(' · ');
+      if (!t) return '';
+      if (t.timing_ms) {
+        const r = t.timing_ms.retrieve_ms;
+        const i = t.timing_ms.inference_ms;
+        const chunks = (t.rag && t.rag.returned != null) ? t.rag.returned : '';
+        const chars = (t.sizes && t.sizes.prompt_chars != null) ? (t.sizes.prompt_chars >= 1000 ? (t.sizes.prompt_chars / 1000).toFixed(1) + 'k' : t.sizes.prompt_chars) : '';
+        const parts = ['Retrieve ' + r + 'ms', 'Infer ' + i + 'ms'];
+        if (chunks !== '') parts.push(chunks + ' chunks');
+        if (chars) parts.push(chars + ' chars');
+        return parts.join(' · ');
+      }
+      if (t.latency_ms != null || t.context_tokens != null) {
+        const parts = [];
+        if (t.context_tokens != null) parts.push('Context: ' + t.context_tokens + ' tok');
+        if (t.latency_ms != null) parts.push('Latency: ' + (t.latency_ms >= 1000 ? (t.latency_ms / 1000).toFixed(1) + 's' : t.latency_ms + 'ms'));
+        if (t.prompt_tokens != null) parts.push('Prompt: ' + t.prompt_tokens);
+        if (t.completion_tokens != null) parts.push('Completion: ' + t.completion_tokens);
+        if (t.retrieved_chunks != null) parts.push(t.retrieved_chunks + ' chunks');
+        return parts.join(' · ');
+      }
+      return '';
     }
 
     function renderConversation() {
@@ -303,6 +431,58 @@
         statusEl.textContent = 'Error';
         statusEl.className = 'status error';
         payloadEl.textContent = e.message || String(e);
+      }
+      loadModelInfo();
+      loadWorkloadInfo();
+    }
+
+    async function loadWorkloadInfo() {
+      if (!workloadInfoEl) return;
+      try {
+        const res = await fetch(window.location.origin + '/api/corpus');
+        const d = await res.json();
+        if (d.num_chunks === 0 && d.num_files === 0) {
+          workloadInfoEl.innerHTML = 'No index loaded. Run: <code>uv run python -m ingest</code>';
+          workloadInfoEl.classList.remove('empty');
+          return;
+        }
+        const name = escapeHtml(d.codebase_name || 'corpus');
+        const files = (d.num_files ?? 0).toLocaleString();
+        const chunks = (d.num_chunks ?? 0).toLocaleString();
+        const lines = (d.total_lines ?? 0).toLocaleString();
+        const chars = (d.total_chars ?? 0).toLocaleString();
+        const idxMb = d.index_size_mb ?? 0;
+        const metaMb = d.metadata_size_mb ?? 0;
+        const totalMb = (idxMb + metaMb).toFixed(1);
+        let html = '<span class="wlabel">Codebase:</span><span class="wvalue">' + name + '</span>';
+        html += ' &middot; <span class="wlabel">Files:</span><span class="wvalue">' + files + '</span>';
+        html += ' &middot; <span class="wlabel">Chunks:</span><span class="wvalue">' + chunks + '</span>';
+        html += ' &middot; <span class="wlabel">Lines:</span><span class="wvalue">' + lines + '</span>';
+        html += ' &middot; <span class="wlabel">Chars:</span><span class="wvalue">' + chars + '</span>';
+        html += ' &middot; <span class="wlabel">Data size:</span><span class="wvalue">' + totalMb + ' MB</span>';
+        workloadInfoEl.innerHTML = html;
+        workloadInfoEl.classList.remove('empty');
+      } catch (e) {
+        workloadInfoEl.innerHTML = 'Workload info unavailable';
+        workloadInfoEl.classList.remove('empty');
+      }
+    }
+
+    async function loadModelInfo() {
+      if (!modelInfoEl) return;
+      try {
+        const res = await fetch(window.location.origin + '/api/model-info');
+        const d = await res.json();
+        let html = '<span class="label">Model:</span> <span class="value">' + escapeHtml(d.model || '—') + '</span>';
+        if (d.quant) html += ' &middot; <span class="label">Quant:</span> <span class="value">' + escapeHtml(String(d.quant)) + '</span>';
+        if (d.parameter_size) html += ' &middot; <span class="label">Params:</span> <span class="value">' + escapeHtml(String(d.parameter_size)) + '</span>';
+        html += ' &middot; <span class="label">Context:</span> <span class="value">' + (d.context_length != null ? d.context_length.toLocaleString() : '—') + '</span>';
+        if (d.size_vram_mb != null) html += ' &middot; <span class="label">Mem:</span> <span class="value">' + d.size_vram_mb + ' MB</span>';
+        modelInfoEl.innerHTML = html;
+        modelInfoEl.classList.remove('empty');
+      } catch (e) {
+        modelInfoEl.innerHTML = 'Model info unavailable';
+        modelInfoEl.classList.remove('empty');
       }
     }
 
@@ -389,6 +569,213 @@
       return d.innerHTML;
     }
 
+    function drawLineChart(id, title, turns, getValue, width, height) {
+      const values = turns.map((t, i) => getValue(t, i));
+      const maxV = Math.max(1, ...values);
+      const minV = Math.min(0, ...values);
+      const range = maxV - minV || 1;
+      const pad = { left: 36, right: 16, top: 12, bottom: 32 };
+      const w = width - pad.left - pad.right;
+      const h = height - pad.top - pad.bottom;
+      const x = (i) => pad.left + (i / (values.length - 1 || 1)) * w;
+      const y = (v) => pad.top + h - ((v - minV) / range) * h;
+      const pts = values.map((v, i) => x(i) + ',' + y(v)).join(' ');
+      const n = values.length;
+      const yTicks = 5;
+      const yStep = range / (yTicks - 1) || 1;
+      let parts = [];
+      parts.push('<svg viewBox="0 0 ' + width + ' ' + height + '" xmlns="http://www.w3.org/2000/svg"><title>' + escapeHtml(title) + '</title>');
+      parts.push('<line class="axis" x1="' + pad.left + '" y1="' + (pad.top + h) + '" x2="' + (pad.left + w) + '" y2="' + (pad.top + h) + '"/>');
+      parts.push('<line class="axis" x1="' + pad.left + '" y1="' + pad.top + '" x2="' + pad.left + '" y2="' + (pad.top + h) + '"/>');
+      for (let i = 0; i < yTicks; i++) {
+        const v = minV + i * yStep;
+        const yy = pad.top + h - ((v - minV) / range) * h;
+        parts.push('<line class="axis" x1="' + pad.left + '" y1="' + yy + '" x2="' + (pad.left - 4) + '" y2="' + yy + '"/>');
+        parts.push('<text class="tick" x="' + (pad.left - 6) + '" y="' + (yy + 4) + '" text-anchor="end">' + Math.round(v) + '</text>');
+      }
+      const xStep = Math.max(1, Math.floor(n / 8));
+      for (let i = 0; i < n; i += xStep) {
+        const xx = x(i);
+        parts.push('<line class="axis" x1="' + xx + '" y1="' + (pad.top + h) + '" x2="' + xx + '" y2="' + (pad.top + h + 4) + '"/>');
+        parts.push('<text class="tick" x="' + xx + '" y="' + (pad.top + h + 18) + '" text-anchor="middle">' + (i + 1) + '</text>');
+      }
+      if (n > 0 && (n - 1) % xStep !== 0) {
+        const xx = x(n - 1);
+        parts.push('<line class="axis" x1="' + xx + '" y1="' + (pad.top + h) + '" x2="' + xx + '" y2="' + (pad.top + h + 4) + '"/>');
+        parts.push('<text class="tick" x="' + xx + '" y="' + (pad.top + h + 18) + '" text-anchor="middle">' + n + '</text>');
+      }
+      parts.push('<text class="axis-label" x="' + (pad.left + w / 2) + '" y="' + (height - 6) + '" text-anchor="middle">Turn</text>');
+      parts.push('<text class="axis-label" x="12" y="' + (pad.top + h / 2) + '" text-anchor="middle" transform="rotate(-90, 12, ' + (pad.top + h / 2) + ')">' + escapeHtml(title) + '</text>');
+      parts.push('<polyline fill="none" stroke="var(--pascari-blue)" stroke-width="1.5" points="' + pts + '"/>');
+      parts.push('</svg>');
+      return parts.join('');
+    }
+
+    const NUM_DEGRADATION_TURNS = 15;
+
+    function appendTurnToUI(t, tableWrap, turns) {
+      const modelInfoEl = document.getElementById('degradationModelInfo');
+      if (modelInfoEl) modelInfoEl.textContent = (t.model ? 'Model: ' + t.model : '');
+      let table = '<table class="degradation-table"><thead><tr><th>Turn</th><th>Prompt tokens</th><th>Completion tokens</th><th>Context (tokens)</th><th>KVC (MB)</th><th>Retrieved chunks</th><th>Unique files</th><th>History turns</th><th>Latency (ms)</th></tr></thead><tbody>';
+      turns.forEach((r) => {
+        const m = r.metrics || {};
+        const ctx = m.context_tokens ?? m.prompt_tokens ?? '';
+        const kvc = m.kv_cache_mb != null ? m.kv_cache_mb : '—';
+        table += '<tr><td>' + r.turn + '</td><td>' + (m.prompt_tokens ?? '') + '</td><td>' + (m.completion_tokens ?? '') + '</td><td>' + ctx + '</td><td>' + kvc + '</td><td>' + (m.retrieved_chunks ?? '') + '</td><td>' + (m.unique_files ?? '') + '</td><td>' + (m.history_turns ?? '') + '</td><td>' + (m.latency_ms ?? '') + '</td></tr>';
+      });
+      table += '</tbody></table>';
+      tableWrap.innerHTML = table;
+    }
+
+    async function exportMetrics() {
+      if (!lastDegradationTurns.length) {
+        if (typeof document.getElementById('degradationStatus') !== 'undefined') {
+          document.getElementById('degradationStatus').textContent = 'Run a degradation test first to export metrics.';
+        }
+        return;
+      }
+      const turns = lastDegradationTurns;
+      const modelFromTurn = turns[0] && turns[0].model;
+      let commentLines = [];
+      commentLines.push('# model,' + (modelFromTurn || ''));
+      try {
+        const res = await fetch(window.location.origin + '/api/model-info');
+        const info = await res.json();
+        if (info.quant) commentLines.push('# quant,' + String(info.quant));
+        if (info.parameter_size) commentLines.push('# parameter_size,' + String(info.parameter_size));
+        if (info.context_length != null) commentLines.push('# context_length,' + info.context_length);
+        if (info.size_vram_mb != null) commentLines.push('# size_vram_mb,' + info.size_vram_mb);
+      } catch (e) {}
+      commentLines.push('# exported,' + new Date().toISOString());
+      const headers = ['model', 'turn', 'prompt', 'response', 'prompt_tokens', 'completion_tokens', 'context_tokens', 'kv_cache_mb', 'retrieved_chunks', 'unique_files', 'history_turns', 'latency_ms'];
+      const escapeCsv = function(s) {
+        const t = String(s == null ? '' : s);
+        if (t.indexOf('"') >= 0 || t.indexOf(',') >= 0 || t.indexOf('\n') >= 0) return '"' + t.replace(/"/g, '""') + '"';
+        return t;
+      };
+      const rows = [commentLines.join('\n'), headers.join(',')];
+      const modelVal = modelFromTurn || '';
+      turns.forEach(function(r) {
+        const m = r.metrics || {};
+        rows.push([
+          escapeCsv(r.model || modelVal),
+          r.turn,
+          escapeCsv((r.prompt || '').slice(0, 500)),
+          escapeCsv((r.response || '').slice(0, 500)),
+          m.prompt_tokens ?? '',
+          m.completion_tokens ?? '',
+          m.context_tokens ?? m.prompt_tokens ?? '',
+          m.kv_cache_mb ?? '',
+          m.retrieved_chunks ?? '',
+          m.unique_files ?? '',
+          m.history_turns ?? '',
+          m.latency_ms ?? ''
+        ].join(','));
+      });
+      const csv = rows.join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'degradation_metrics_' + new Date().toISOString().slice(0, 10) + '.csv';
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
+    function renderDegradationCharts(turns, chartsEl) {
+      if (!turns.length) return;
+      const chartW = 400; const chartH = 140;
+      const hasKvc = turns.some((r) => r.metrics && r.metrics.kv_cache_mb != null);
+      chartsEl.innerHTML =
+        '<div class="degradation-chart"><h4>Context size (tokens) vs turn</h4>' + drawLineChart('ctx', 'Context tokens', turns, (r) => (r.metrics && (r.metrics.context_tokens ?? r.metrics.prompt_tokens)) || 0, chartW, chartH) + '</div>' +
+        '<div class="degradation-chart"><h4>Prompt tokens vs turn</h4>' + drawLineChart('pt', 'Prompt tokens', turns, (r) => (r.metrics && r.metrics.prompt_tokens) || 0, chartW, chartH) + '</div>' +
+        (hasKvc ? '<div class="degradation-chart"><h4>KV cache (MB) vs turn</h4>' + drawLineChart('kvc', 'KVC MB', turns, (r) => (r.metrics && r.metrics.kv_cache_mb) || 0, chartW, chartH) + '</div>' : '') +
+        '<div class="degradation-chart"><h4>Retrieved chunks vs turn</h4>' + drawLineChart('rc', 'Retrieved chunks', turns, (r) => (r.metrics && r.metrics.retrieved_chunks) || 0, chartW, chartH) + '</div>' +
+        '<div class="degradation-chart"><h4>Unique files vs turn</h4>' + drawLineChart('uf', 'Unique files', turns, (r) => (r.metrics && r.metrics.unique_files) || 0, chartW, chartH) + '</div>';
+    }
+
+    async function runDegradationTest() {
+      const btn = document.getElementById('runDegradationBtn');
+      const statusEl = document.getElementById('degradationStatus');
+      const resultsEl = document.getElementById('degradationResults');
+      const tableWrap = document.getElementById('degradationTableWrap');
+      const chartsEl = document.getElementById('degradationCharts');
+      btn.disabled = true;
+      statusEl.textContent = 'Running… Turn 1/' + NUM_DEGRADATION_TURNS;
+      resultsEl.classList.add('visible');
+      const modelInfoEl = document.getElementById('degradationModelInfo');
+      if (modelInfoEl) modelInfoEl.textContent = '';
+      tableWrap.innerHTML = '<table class="degradation-table"><thead><tr><th>Turn</th><th>Prompt tokens</th><th>Completion tokens</th><th>Context (tokens)</th><th>KVC (MB)</th><th>Retrieved chunks</th><th>Unique files</th><th>History turns</th><th>Latency (ms)</th></tr></thead><tbody></tbody></table>';
+      chartsEl.innerHTML = '';
+      messages.length = 0;
+      renderConversation();
+      const turns = [];
+      const timeoutMs = 25 * 60 * 1000;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+      let progressId = null;
+      const startTime = Date.now();
+      progressId = setInterval(() => {
+        if (btn.disabled && statusEl.textContent.indexOf('Done') === -1 && statusEl.textContent.indexOf('Error') === -1) {
+          const min = Math.floor((Date.now() - startTime) / 60000);
+          const current = turns.length + 1;
+          statusEl.textContent = 'Still running… Turn ' + current + '/' + NUM_DEGRADATION_TURNS + ' (' + min + ' min elapsed).';
+        }
+      }, 30000);
+      try {
+        let sessionId = null;
+        for (let i = 0; i < NUM_DEGRADATION_TURNS; i++) {
+          statusEl.textContent = 'Running… Turn ' + (i + 1) + '/' + NUM_DEGRADATION_TURNS;
+          const body = { prompt_index: i };
+          if (sessionId != null) body.session_id = sessionId;
+          const res = await fetch(window.location.origin + '/run-degradation-test-turn', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+            signal: controller.signal
+          });
+          let data = {};
+          try { data = await res.json(); } catch (_) {}
+          if (!res.ok) {
+            statusEl.textContent = 'Error: ' + (data.detail || res.statusText);
+            return;
+          }
+          sessionId = data.session_id;
+          turns.push(data);
+          appendTurnToUI(data, tableWrap, turns);
+          messages.push({ role: 'user', content: data.prompt || '' });
+          messages.push({ role: 'assistant', content: data.response || '', turnMetrics: data.metrics });
+          renderConversation();
+        }
+        clearTimeout(timeoutId);
+        clearInterval(progressId);
+        statusEl.textContent = 'Done. Session: ' + (sessionId || '').slice(0, 8) + '…';
+        renderDegradationCharts(turns, chartsEl);
+        lastDegradationTurns = turns.slice();
+        const last = turns[turns.length - 1];
+        const m = (last && last.metrics) || {};
+        const avgLat = turns.length ? (turns.reduce(function(s, r) { return s + ((r.metrics && r.metrics.latency_ms) || 0); }, 0) / turns.length) : 0;
+        const modelName = (turns[0] && turns[0].model) ? turns[0].model : '';
+        let summary = '— Degradation test complete.';
+        if (modelName) summary += ' Model: ' + modelName + '.';
+        summary += ' Key metrics: ' + turns.length + ' turns, avg latency ' + (avgLat >= 1000 ? (avgLat / 1000).toFixed(1) + 's' : Math.round(avgLat) + 'ms');
+        if (m.context_tokens != null) summary += ', final context ' + m.context_tokens + ' tok';
+        summary += '. See sidebar for table and charts.';
+        messages.push({ role: 'assistant', content: summary, turnMetrics: null });
+        renderConversation();
+        loadModelInfo();
+      } catch (e) {
+        clearTimeout(timeoutId);
+        if (progressId) clearInterval(progressId);
+        if (e.name === 'AbortError') {
+          statusEl.textContent = 'Timed out after 25 min. Check that Ollama is running and the model is loaded (e.g. ollama run llama3.1:8b).';
+        } else {
+          statusEl.textContent = 'Error: ' + (e.message || String(e));
+        }
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
     const searchCardEl = document.getElementById('searchCard');
     const searchToggleEl = document.getElementById('searchToggle');
     searchToggleEl.addEventListener('click', () => {
@@ -401,6 +788,8 @@
     searchQueryEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') searchCorpus(); });
     sendEl.addEventListener('click', sendChat);
     promptEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChat(); });
+    document.getElementById('runDegradationBtn').addEventListener('click', runDegradationTest);
+    document.getElementById('exportMetricsBtn').addEventListener('click', exportMetrics);
   </script>
 </body>
 </html>

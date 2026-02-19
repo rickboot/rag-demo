@@ -11,7 +11,10 @@ from pydantic import BaseModel
 
 from config import settings
 
+import uuid
+
 from backend.agent import run_rag_chat
+from backend.degradation import NUM_DEGRADATION_TURNS, run_degradation_test, run_degradation_turn
 from backend.retrieval import retrieve
 
 app = FastAPI(
@@ -47,6 +50,85 @@ def hello() -> dict:
         "inference_url": settings.inference_url,
         "model": settings.model_name,
     }
+
+
+@app.get("/api/model-info")
+async def api_model_info() -> dict:
+    """Model name, quant, context length, and memory (from Ollama show + ps when available)."""
+    out = {
+        "model": settings.model_name,
+        "quant": None,
+        "parameter_size": None,
+        "context_length": settings.context_length,
+        "size_vram_mb": None,
+    }
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            show_url = f"{settings.inference_url}/api/show"
+            resp = await client.post(show_url, json={"model": settings.model_name})
+            if resp.status_code == 200:
+                data = resp.json()
+                details = data.get("details") or {}
+                out["quant"] = details.get("quantization_level")
+                out["parameter_size"] = details.get("parameter_size")
+                model_info = data.get("model_info") or {}
+                for k, v in model_info.items():
+                    if "context_length" in k.lower() and isinstance(v, (int, float)):
+                        out["context_length"] = int(v)
+                        break
+            ps_url = f"{settings.inference_url}/api/ps"
+            ps_resp = await client.get(ps_url)
+            if ps_resp.status_code == 200:
+                ps_data = ps_resp.json()
+                models = ps_data.get("models") or []
+                for m in models:
+                    if m.get("name", "").startswith(settings.model_name) or settings.model_name in m.get("name", ""):
+                        size_vram = m.get("size_vram") or m.get("size")
+                        if size_vram is not None:
+                            out["size_vram_mb"] = round(size_vram / (1024 * 1024), 2)
+                        break
+    except Exception:
+        pass
+    return out
+
+
+def _index_dir() -> Path:
+    p = settings.index_path.expanduser().resolve()
+    return p.parent if p.suffix else p
+
+
+@app.get("/api/corpus")
+def api_corpus() -> dict:
+    """Workload/codebase info: name, file count, chunks, lines, index size. From metadata.json + index."""
+    import json
+    out = {
+        "codebase_name": getattr(settings.repo_path, "name", None) or str(settings.repo_path),
+        "num_files": 0,
+        "num_chunks": 0,
+        "total_chars": 0,
+        "total_lines": 0,
+        "index_size_mb": 0.0,
+        "metadata_size_mb": 0.0,
+    }
+    idx_dir = _index_dir()
+    meta_path = idx_dir / "metadata.json"
+    index_path = idx_dir / "index.faiss"
+    if not meta_path.exists():
+        return out
+    try:
+        metadata = json.loads(meta_path.read_text(encoding="utf-8"))
+        if not isinstance(metadata, list):
+            return out
+        out["num_chunks"] = len(metadata)
+        out["num_files"] = len({m.get("path") for m in metadata if m.get("path")})
+        out["total_chars"] = sum(len(m.get("text") or "") for m in metadata)
+        out["total_lines"] = sum((m.get("text") or "").count("\n") for m in metadata)
+        if index_path.exists():
+            out["index_size_mb"] = round(index_path.stat().st_size / (1024 * 1024), 2)
+        out["metadata_size_mb"] = round(meta_path.stat().st_size / (1024 * 1024), 2)
+    except Exception:
+        pass
+    return out
 
 
 # In-memory session store: session_id -> list of {role, content}
@@ -148,6 +230,36 @@ class RetrieveRequest(BaseModel):
 
 class RetrieveResponse(BaseModel):
     chunks: list[dict]
+
+
+class RunDegradationTurnRequest(BaseModel):
+    session_id: str | None = None
+    prompt_index: int
+
+
+@app.post("/run-degradation-test")
+async def api_run_degradation_test() -> dict:
+    """Run predefined 15-turn sequence against RAG + chat; single session, metrics per turn."""
+    session_id = str(uuid.uuid4())
+    try:
+        result = await run_degradation_test(session_id, _sessions)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.post("/run-degradation-test-turn")
+async def api_run_degradation_test_turn(req: RunDegradationTurnRequest) -> dict:
+    """Run one degradation turn; client calls this 15 times (prompt_index 0..14) to show each turn as it completes."""
+    if not (0 <= req.prompt_index < NUM_DEGRADATION_TURNS):
+        raise HTTPException(
+            status_code=400,
+            detail=f"prompt_index must be 0..{NUM_DEGRADATION_TURNS - 1}",
+        )
+    try:
+        return await run_degradation_turn(req.session_id, req.prompt_index, _sessions)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @app.post("/api/retrieve", response_model=RetrieveResponse)
